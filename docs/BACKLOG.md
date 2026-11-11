@@ -2,7 +2,7 @@
 
 The SOW work broken into tasks of 1–3 days, each with a single owner. IDs are stable; reference them in branch names and commit messages (e.g. `BE-07: whatsapp webhook`).
 
-**Repos:** FE = `agentra-frontend`, BE = `agentra-backend`, AI = `agentra-ai`, PRJ = `agentra-project` (docs).
+**Repos:** FE = `agentra-frontend` (React + Vite), BE = `agentra-backend` (NestJS + Postgres), AI = `agentra-ai` (Python: Temporal + LangGraph), PRJ = `agentra-project` (docs). Architecture: [ARCHITECTURE.md](ARCHITECTURE.md).
 **Status:** ✅ done · 🔨 in progress · ⬜ not started · ⛔ blocked on client (SOW §9)
 
 ## Week 0–1: foundations and discovery
@@ -15,7 +15,7 @@ The SOW work broken into tasks of 1–3 days, each with a single owner. IDs are 
 | PRJ-04 | Detailed plan with dated client-dependency milestones (§6.1, needed for the §6.4 delay clause) | PRJ | PRJ-01 | Sent within 10 business days of kickoff | ⬜ |
 | PRJ-05 | Usage and cost estimate for LLM, WhatsApp and hosting (§8) | PRJ | PRJ-01 | Sent before kickoff | ⬜ |
 | PRJ-06 | Start Meta Business verification and WhatsApp display-name approval | PRJ | ⛔ client's Meta business account | Number approved | ⬜ |
-| ALL-01 | Repo scaffolds, CI, task contract v1 | FE/BE/AI | — | Lint and tests green | ✅ |
+| ALL-01 | Repo scaffolds, CI, contract v1 (React / NestJS / Temporal + LangGraph) | FE/BE/AI | — | Lint and tests green; local end-to-end run | ✅ |
 | ALL-02 | Create GitHub repos under it949 and push | — | ⛔ it949 owner creates repos | `main` pushed | ⛔ |
 | INF-01 | AWS Mumbai account baseline: VPC, RDS Postgres + pgvector, Redis, S3 with KMS, Secrets Manager (Terraform) | BE | client hosting decision (§9.7) | `terraform apply` in a dev account | ⬜ |
 | INF-02 | Temporal for dev and staging (self-hosted or Cloud) | BE | INF-01 | Workers connect from CI | ⬜ |
@@ -33,18 +33,18 @@ The SOW work broken into tasks of 1–3 days, each with a single owner. IDs are 
 
 | ID | Task | Repo | Depends on | Done when | Status |
 |---|---|---|---|---|---|
-| AI-04 | `HandleRequest` workflow skeleton | AI | ALL-01 | Imports, writes run once | ✅ |
+| AI-04 | `HandleRequest` workflow: clarify loop, policy, approval, write-once execute, verify | AI | ALL-01 | Time-skipping tests green | ✅ |
 | AI-05 | Workflow template registry (loaded from the signed Register) | AI | PRJ-01 | Every Register entry has a template | ⬜ |
-| AI-06 | `interpret` activity: Claude structured output → template key + fields | AI | AI-05 | ≥95% on golden set (EV-01) | ⬜ |
+| AI-06 | `interpret` activity: LangGraph graph, Claude structured output → template key + fields | AI | AI-05 | ≥95% on golden set (EV-01) | 🔨 graph built, needs golden set |
 | AI-07 | PII redaction before every LLM call; Langfuse tracing | AI | AI-06 | No raw Aadhaar, PAN or phone number in traces | ⬜ |
 | AI-08 | `execute` with idempotency keys and `unknown` outcome handling | AI | AI-02 | Killing the worker mid-write produces `unknown_outcome`, never a duplicate | ⬜ |
 | AI-09 | `verify` read-back per template | AI | AI-08 | Field-by-field comparison stored as evidence | ⬜ |
 | AI-10 | Browser session pool (one live session per account), Playwright trace + video per run | AI | AI-01 | Parallel tasks queue instead of logging each other out | ⬜ |
 | AI-11 | Computer-use fallback when a scripted selector fails, with alerting | AI | AI-10 | Broken-selector test recovers or fails safe | ⬜ |
-| BE-01 | `/internal/policy`: RBAC + data scope + action allowlist | BE | ⛔ permission matrix (§9.2) | Employees can only act on their own record | ⬜ |
-| BE-02 | `/internal/tasks/{id}/events` + hash-chained audit log | BE | ALL-01 | Tampering breaks the chain check | ⬜ |
-| BE-03 | Task store + `start_handle_request` (workflow ID = task ID) | BE | BE-02 | Duplicate webhook does not start a second run | ⬜ |
-| BE-04 | Approvals API: list, approve, reject → Temporal signal; 24h expiry | BE | BE-03 | Approval in the console resumes the workflow | ⬜ |
+| BE-01 | `/internal/policy`: RBAC + data scope + action allowlist | BE | ⛔ permission matrix (§9.2) | Employees can only act on their own record | 🔨 deny-by-default draft |
+| BE-02 | `/internal/tasks/{id}/events` + hash-chained audit log | BE | ALL-01 | Tampering breaks the chain check | ✅ |
+| BE-03 | Task store + start `HandleRequest` (workflow ID = task ID); retry sweep for tasks stuck in `received` | BE | BE-02 | Duplicate webhook does not start a second run | 🔨 sweep pending |
+| BE-04 | Approvals API: list, approve, reject → Temporal signal; 24h expiry | BE | BE-03 | Approval in the console resumes the workflow | ✅ API (console button: FE-06) |
 | EV-01 | Golden set: 150+ real phrasings per workflow (English, Hindi, Hinglish) | AI | PRJ-01 | Runs in CI, scores reported | ⬜ |
 | EV-02 | Prompt-injection suite (email, WhatsApp, document text) | AI | AI-06 | No injected approval or scope change succeeds | ⬜ |
 
@@ -66,7 +66,7 @@ The SOW work broken into tasks of 1–3 days, each with a single owner. IDs are 
 | AI-12 | KB ingestion: chunking, embeddings, hybrid search over published documents only | AI | BE-10 | Retired version never retrieved | ⬜ |
 | AI-13 | `kb.answer`: answers cite a source or decline | AI | AI-12 | No uncited answers in EV-01 | ⬜ |
 | BE-11 | Console auth: OIDC with the client's identity provider; console roles | BE | ⛔ IdP details | HR admin vs viewer enforced | ⬜ |
-| BE-12 | Console read API: tasks, task detail, failures, KB, audits (OpenAPI) | BE | BE-03 | Frontend client generated from it | ⬜ |
+| BE-12 | Console read API: tasks, task detail, failures, KB, audits (OpenAPI) | BE | BE-03 | Frontend client generated from it | 🔨 tasks, detail, failures, approvals done |
 | FE-01 | Design system: tokens, light/dark, type scale, badges, cards | FE | — | Matches the reviewed screenshots | ✅ |
 | FE-02 | Console shell: sidebar, mobile nav, page headers | FE | FE-01 | Works at 1440px and on phones | ✅ |
 | FE-03 | Overview, Requests, Request detail, Approvals, Needs attention, Knowledge and Audits pages on sample data | FE | FE-02 | Build green; all pages render | ✅ |
